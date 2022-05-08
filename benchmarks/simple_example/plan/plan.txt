@@ -1,0 +1,2 @@
+0: (move r1 loc1 loc2) [0]
+1: (move r1 loc2 loc3) [0]
