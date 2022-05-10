@@ -492,7 +492,7 @@ public class ASP extends AbstractPlanner<ADLProblem> {
     public int[] solverSAT(Vec<IVecInt> allClauses) {
         final int MAXVAR = 1000000;
 
-        LOGGER.info("Number clauses: {}", allClauses.size());
+        LOGGER.info("Number clauses: {}\n", allClauses.size());
 
         ISolver solver = SolverFactory.newDefault();
 
@@ -528,6 +528,58 @@ public class ASP extends AbstractPlanner<ADLProblem> {
     }
 
     /**
+     * Encode a problem into its conjunctive normal form 
+     * 
+     * @param problem Problem to encode
+     * @return The conjunctive normal form of the problem
+     */
+    private Vec<IVecInt> encodeProblemAsCNF(ADLProblem problem, int numberSteps)
+    {
+        LOGGER.info("Encode the inital state into clauses\n");
+        Vec<IVecInt> clausesInitState = encodeInitialState(problem, numberSteps);
+        LOGGER.info("Encode the final state into clauses\n");
+        Vec<IVecInt> clausesGoalState = encodeFinalState(problem, numberSteps);
+        LOGGER.info("Encode the actions into clauses\n");
+        Vec<IVecInt> clausesActions = encodeActions(problem, numberSteps);
+        LOGGER.info("Encode the explanatory frame axioms into clauses\n");
+        Vec<IVecInt> clausesExplanatoryFrameAxioms = encodeExplanatoryFrameAxioms(problem, numberSteps);
+        LOGGER.info("Encode complete excusion axiom into clauses\n");
+        Vec<IVecInt> clausesCompleteExclusionAxioms = encodeCompleteExclusionAxioms(problem, numberSteps);
+
+        // Merge all the clauses into a single one
+        Vec<IVecInt> allClauses = new Vec<IVecInt>();
+        clausesInitState.copyTo(allClauses);
+        clausesGoalState.copyTo(allClauses);
+        clausesActions.copyTo(allClauses);
+        clausesExplanatoryFrameAxioms.copyTo(allClauses);
+        clausesCompleteExclusionAxioms.copyTo(allClauses);
+
+        return allClauses;
+    }
+
+    /**
+     * Construct the plan from the model given as parameter
+     * 
+     * @param model Model of the problem
+     * @return the plan construct from the model
+     */
+    private Plan constructPlanFromModel(int[] model, ADLProblem problem)
+    {
+        Plan plan = new SequentialPlan();
+        int idxActionInPlan = 0;
+        for (Integer idx : model) {
+            Action a = getActionWithIdx(problem, idx);
+            if (a != null) {
+                LOGGER.info("{}  ", idx);
+                prettyPrintAction(a, problem);
+                plan.add(idxActionInPlan, a);
+                idxActionInPlan++;
+            }
+        }
+        return plan;
+    }
+
+    /**
      * Search a solution plan to a specified domain and problem using A*.
      *
      * @param problem the problem to solve.
@@ -535,9 +587,6 @@ public class ASP extends AbstractPlanner<ADLProblem> {
      */
     @Override
     public Plan solve(final ADLProblem problem) {
-        LOGGER.info("In solver function\n");
-
-        final long beginEncodeTime = System.currentTimeMillis();
 
         // Print all the fluent of the problems to have a better understanding of it
         LOGGER.info("All fluents of the problem:\n");
@@ -555,57 +604,30 @@ public class ASP extends AbstractPlanner<ADLProblem> {
         int n = 10;
         LOGGER.info("Max step choosen: {}\n", n);
 
-        LOGGER.info("Encode the inital state into clauses\n");
-        Vec<IVecInt> clausesInitState = encodeInitialState(problem, n);
-        LOGGER.info("Encode the final state into clauses\n");
-        Vec<IVecInt> clausesGoalState = encodeFinalState(problem, n);
-        LOGGER.info("Encode the actions into clauses\n");
-        Vec<IVecInt> clausesActions = encodeActions(problem, n);
-        LOGGER.info("Encode the explanatory frame axioms into clauses\n");
-        Vec<IVecInt> clausesExplanatoryFrameAxioms = encodeExplanatoryFrameAxioms(problem, n);
-        LOGGER.info("Encode complete excusion axiom into clauses\n");
-        Vec<IVecInt> clausesCompleteExclusionAxioms = encodeCompleteExclusionAxioms(problem, n);
-
-        // Merge all the clauses into a single one
-        Vec<IVecInt> allClauses = new Vec<IVecInt>();
-        clausesInitState.copyTo(allClauses);
-        clausesGoalState.copyTo(allClauses);
-        clausesActions.copyTo(allClauses);
-        clausesExplanatoryFrameAxioms.copyTo(allClauses);
-        clausesCompleteExclusionAxioms.copyTo(allClauses);
-
-        // LOGGER.info("ALL CLAUSES: {}\n", allClauses);
-
+        // Encode the problem into its CNF form
+        final long beginEncodeTime = System.currentTimeMillis();
+        Vec<IVecInt> allClauses = encodeProblemAsCNF(problem, n);
         final long endEncodeTime = System.currentTimeMillis();
-
         this.getStatistics()
                 .setTimeToEncode(this.getStatistics().getTimeToEncode() + (endEncodeTime - beginEncodeTime));
 
-        final long beginSolveTime = System.currentTimeMillis();
 
-        // We have encoded the full problem into CNF type, now, pass it to the solver
+        // We have encoded the full problem into its CNF form, now, pass it to the solver
+        final long beginSolveTime = System.currentTimeMillis();
         LOGGER.info("Launch the solver !\n");
         int[] model = solverSAT(allClauses);
-        if (model != null) {
-            LOGGER.info("Construct plan: \n");
-            Plan plan = new SequentialPlan();
-            int idxActionInPlan = 0;
-            for (Integer idx : model) {
-                Action a = getActionWithIdx(problem, idx);
-                if (a != null) {
-                    LOGGER.info("{}  ", idx);
-                    prettyPrintAction(a, problem);
-                    plan.add(idxActionInPlan, a);
-                    idxActionInPlan++;
-                }
-            }
-            final long endSolveTime = System.currentTimeMillis();
-            this.getStatistics().setTimeToSearch(endSolveTime - beginSolveTime);
-            // LOGGER.info(problem.toString(plan));
-            return plan;
-        } else {
+        if (model == null)
+        {
+            LOGGER.error("Failed to find a model\n");
             return null;
         }
+
+        // Construct the plan from the model
+        Plan plan = constructPlanFromModel(model, problem);
+        final long endSolveTime = System.currentTimeMillis();
+        this.getStatistics().setTimeToSearch(endSolveTime - beginSolveTime);
+
+        return plan;
     }
 
     /**
