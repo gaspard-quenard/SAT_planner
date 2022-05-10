@@ -24,7 +24,7 @@
             "request": "launch",
             "mainClass": "demo.ASP",
             "projectName": "app",
-            "args": "/home/gaspard/Programming/AI_Planning/demo/benchmarks/invalid_tests/domain.pddl /home/gaspard/Programming/AI_Planning/demo/benchmarks/invalid_tests/p01.pddl"
-        }
+            "args": "/home/gaspard/Programming/AI_Planning/demo/benchmarks/ipc1/gripper/domain.pddl /home/gaspard/Programming/AI_Planning/demo/benchmarks/ipc1/gripper/p01.pddl"
+        },
     ]
 }

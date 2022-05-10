@@ -1,43 +1,82 @@
 package demo;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.sat4j.core.Vec;
+import org.sat4j.core.VecInt;
+import org.sat4j.minisat.SolverFactory;
+import org.sat4j.specs.ContradictionException;
+import org.sat4j.specs.IProblem;
+import org.sat4j.specs.ISolver;
+import org.sat4j.specs.IVecInt;
+import org.sat4j.specs.TimeoutException;
 
 import fr.uga.pddl4j.parser.ParsedProblem;
 import fr.uga.pddl4j.plan.Plan;
 import fr.uga.pddl4j.plan.SequentialPlan;
-import fr.uga.pddl4j.problem.State;
-import fr.uga.pddl4j.util.BitVector;
 import fr.uga.pddl4j.planners.AbstractPlanner;
 import fr.uga.pddl4j.problem.ADLProblem;
 import fr.uga.pddl4j.problem.Fluent;
 import fr.uga.pddl4j.problem.operator.Action;
-
+import fr.uga.pddl4j.util.BitVector;
 import picocli.CommandLine;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Vector;
-import java.util.HashSet;
-
-import org.sat4j.minisat.SolverFactory;
-import org.sat4j.core.VecInt;
-import org.sat4j.core.Vec;
-import org.sat4j.specs.ISolver;
-import org.sat4j.specs.IVec;
-import org.sat4j.specs.IVecInt;
-import org.sat4j.specs.TimeoutException;
-import org.sat4j.specs.ContradictionException;
-import org.sat4j.specs.IProblem;
-
 /**
- * The class is an example. It shows how to create a simple A* search planner
- * able to
- * solve an ADL problem by choosing the heuristic to used and its weight.
+ * This class implements a SAT solver.
  *
- * @author D. Pellier
- * @version 4.0 - 30.11.2021
+ *
+ * <p>
+ * The command line syntax to launch the planner is as follow:
+ * </p>
+ *
+ * <pre>
+ * {@code
+ * FF [-hV] [-l=<logLevel>] [-t=<timeout>] [-o=<writePlanTo>] <domain>
+ *             <problem>
+ *
+ * Description:
+ *
+ * Solves a specified planning problem by encoding it into its CNF form and 
+ * launching a solver SAT (taken from the library sat4j) on the CNF encoding 
+ * generated
+ *
+ * Parameters:
+ *       <domain>              The domain file.
+ *       <problem>             The problem file.
+ *
+ * Options:
+ *   -l, --log=<logLevel>      Set the level of trace: ALL, DEBUG, INFO, ERROR,
+ *                               FATAL, OFF, TRACE (preset INFO).
+ *   -t, --timeout=<timeout>   Set the time out of the planner in seconds (
+ *                               preset 600s).
+ *   -o, --write-plan-to=<outputFullPath>  If a plan is found write the plan to the file path provided
+ *   -h, --help                Show this help message and exit.
+ *   -V, --version             Print version information and exit.
+ *  }
+ * </pre>
+ *
+ * <p>
+ * Command line example:
+ * </p>
+ * 
+ * <pre>
+ * {@code
+ *    ./gradlew run --args="<domain> <problem>"
+ * }
+ * </pre>
+ *
+ * @author Gaspard Quenard
+ * @version 1.0 - 10.05.2022
+ *
  */
 @CommandLine.Command(name = "ASP", version = "ASP 1.0", description = "Solves a specified planning problem using A* search strategy.", sortOptions = false, mixinStandardHelpOptions = true, headerHeading = "Usage:%n", synopsisHeading = "%n", descriptionHeading = "%nDescription:%n%n", parameterListHeading = "%nParameters:%n", optionListHeading = "%nOptions:%n")
 public class ASP extends AbstractPlanner<ADLProblem> {
@@ -46,6 +85,11 @@ public class ASP extends AbstractPlanner<ADLProblem> {
      * The class logger.
      */
     private static final Logger LOGGER = LogManager.getLogger(ASP.class.getName());
+
+    /**
+     * Full path of file to store path found.
+     */
+    private String outputFullFileName = null;
 
     /**
      * Instantiates the planning problem from a parsed problem.
@@ -63,99 +107,87 @@ public class ASP extends AbstractPlanner<ADLProblem> {
     }
 
     /**
-     * Print the name and arguments of a fluent
+     * Command line option to set the full path of the file to store the plan found.
      * 
-     * @param f       The fluent to print
-     * @param problem THe problem to solve
+     * @param outputFullPathFile Full path of the file to store the plan found
      */
-    public void prettyPrintFluent(Fluent f, ADLProblem problem) {
-        StringBuilder prettyFluent = new StringBuilder();
-
-        // Add the fluent name (e.g "at" for the fluent at ?r - robot ?l - location)
-        prettyFluent.append(problem.getPredicateSymbols().get(f.getSymbol()));
-
-        // Then for each argument for this fluent, add the argument into the string
-        for (int symbol_integer : f.getArguments()) {
-            prettyFluent.append(" " + problem.getConstantSymbols().get(symbol_integer));
+    @CommandLine.Option(names = { "-o",
+            "--write-plan-to" }, paramLabel = "<outputFullPathFile>", description = "If a plan is found write the plan to the file path provided")
+    public void setOutputFullPathFile(final String outputFullPathFile) {
+        try {
+            Paths.get(outputFullPathFile);
+        } catch (InvalidPathException | NullPointerException ex) {
+            throw new IllegalArgumentException("Incorrect path provided");
         }
-
-        LOGGER.info("Fluent: {}\n", prettyFluent);
+        this.outputFullFileName = outputFullPathFile;
     }
 
     /**
-     * Print the name and arguments of a action
+     * Write a plan to the full path specified by the variable outputFullFileName.
+     *
+     * @param plan Plan to write into file
+     */
+    private void writePlanToFile(String plan) {
+        File file = new File(this.outputFullFileName);
+
+        // Create the file to store the plan
+        try {
+            if (file.exists() && file.isFile()) {
+                LOGGER.info("The file {} already exist. Delete it\n", this.outputFullFileName);
+                file.delete();
+            }
+            file.createNewFile();
+
+            // Write plan into the file
+            FileWriter writer = new FileWriter(file);
+            writer.write(plan);
+            writer.close();
+        } catch (IOException e) {
+            LOGGER.error("Failed to write plan into file {}\n", this.outputFullFileName);
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Display a fluent in easily readable format
+     * (for example: at r1 l1).
      * 
-     * @param f       The action to print
-     * @param problem THe problem to solve
+     * @param f       The fluent to display in easily readable format
+     * @param problem The problem to solve
+     */
+    private void prettyPrintFluent(Fluent f, ADLProblem problem) {
+        StringBuilder fluentToDisplay = new StringBuilder();
+
+        // Add the fluent name (e.g "at" for the fluent at ?r - robot ?l - location)
+        fluentToDisplay.append(problem.getPredicateSymbols().get(f.getSymbol()));
+
+        // Then for each argument of this fluent, add the argument into the string
+        for (int fluentArg : f.getArguments()) {
+            fluentToDisplay.append(" " + problem.getConstantSymbols().get(fluentArg));
+        }
+
+        LOGGER.info("Fluent: {}\n", fluentToDisplay);
+    }
+
+    /**
+     * Display an action in easily readable format
+     * (for example: move r1 l1 l2).
+     * 
+     * @param a       The action to display in easily readable format
+     * @param problem The problem to solve
      */
     public void prettyPrintAction(Action a, ADLProblem problem) {
-        StringBuilder prettyAction = new StringBuilder();
+        StringBuilder actionToDisplay = new StringBuilder();
 
-        // Add the fluent name (e.g "at" for the fluent at ?r - robot ?l - location)
-        prettyAction.append(a.getName());
+        // Add the action name (e.g "move" for the action move r1 l1 l2)
+        actionToDisplay.append(a.getName());
 
-        // Then for each argument for this fluent, add the argument into the string
-        for (int symbol_integer : a.getInstantiations()) {
-            prettyAction.append(" " + problem.getConstantSymbols().get(symbol_integer));
+        // Then for each argument of this action, add the argument into the string
+        for (int actionArg : a.getInstantiations()) {
+            actionToDisplay.append(" " + problem.getConstantSymbols().get(actionArg));
         }
 
-        LOGGER.info("Action: {}\n", prettyAction);
-    }
-
-    /**
-     * Get the ID of the fluents from a BitVector and indicate for each one, its
-     * name, and its parameters
-     * 
-     * @param fluentsInBitVector Bit vector containing the ID of the fluents
-     * @param problem            The problem to solve
-     */
-    public void debugPrintFluentFromBitVector(BitVector fluentsInBitVector, ADLProblem problem) {
-        // First, get the fluent idx from the BitVector
-        int idx_fluent = fluentsInBitVector.nextSetBit(0);
-        Fluent f;
-        if (idx_fluent != -1) {
-            f = problem.getFluents().get(idx_fluent);
-            prettyPrintFluent(f, problem);
-            while (true) {
-
-                if (++idx_fluent < 0) {
-                    break;
-                }
-                if ((idx_fluent = fluentsInBitVector.nextSetBit(idx_fluent)) < 0) {
-                    break;
-                }
-                int endOfRun = fluentsInBitVector.nextClearBit(idx_fluent);
-                do {
-                    f = problem.getFluents().get(idx_fluent);
-                    prettyPrintFluent(f, problem);
-                } while (++idx_fluent != endOfRun);
-            }
-        }
-    }
-
-    public List<Integer> convertBitArrayToListInteger(BitVector b) {
-
-        List<Integer> valuesBitArray = new ArrayList<Integer>();
-
-        int value = b.nextSetBit(0);
-        if (value != -1) {
-            valuesBitArray.add(value);
-            while (true) {
-
-                if (++value < 0) {
-                    break;
-                }
-                if ((value = b.nextSetBit(value)) < 0) {
-                    break;
-                }
-                int endOfRun = b.nextClearBit(value);
-                do {
-                    valuesBitArray.add(value);
-                } while (++value != endOfRun);
-            }
-        }
-
-        return valuesBitArray;
+        LOGGER.info("Action: {}\n", actionToDisplay);
     }
 
     private int getFluentIdx(ADLProblem problem, Fluent state, int timeStep) {
@@ -223,29 +255,30 @@ public class ASP extends AbstractPlanner<ADLProblem> {
         Vec<IVecInt> clausesInitState = new Vec<IVecInt>();
 
         // Get all the fluent at the initial state
-        BitVector b = problem.getInitialState().getPositiveFluents();
+        BitVector initStatePosFluents = problem.getInitialState().getPositiveFluents();
 
-        HashSet<Integer> allStatesIdx = new HashSet<Integer>();
+        HashSet<Integer> fluentsNotInInitState = new HashSet<Integer>();
         for (int i = 0; i < problem.getFluents().size(); i++) {
-            allStatesIdx.add(i);
+            fluentsNotInInitState.add(i);
         }
 
-        for (int idxState : convertBitArrayToListInteger(b)) {
+        for (int p = initStatePosFluents.nextSetBit(0); p >= 0; p = initStatePosFluents.nextSetBit(p + 1)) {
             // Some debugging infos
-            Fluent f = problem.getFluents().get(idxState);
+            Fluent f = problem.getFluents().get(p);
             prettyPrintFluent(f, problem);
 
-            allStatesIdx.remove(idxState);
+            fluentsNotInInitState.remove(p);
 
             // Add the fluent into the clauseInitState
             int idxFluent = getFluentIdx(problem, f, 0);
             VecInt clause = new VecInt(new int[] { idxFluent });
             clausesInitState.push(clause);
+
+            initStatePosFluents.set(p);
         }
 
-        for (Integer stateNotInInitState : allStatesIdx) {
-            VecInt clause = new VecInt(new int[] { -(stateNotInInitState + 1) }); // + 1 because state begin from 1 and
-                                                                                  // not from 0
+        for (Integer stateNotInInitState : fluentsNotInInitState) {
+            VecInt clause = new VecInt(new int[] { -(stateNotInInitState + 1) });
             clausesInitState.push(clause);
         }
 
@@ -259,29 +292,20 @@ public class ASP extends AbstractPlanner<ADLProblem> {
         Vec<IVecInt> clausesGoalState = new Vec<IVecInt>();
 
         // Get all the fluents at the goal state
-        BitVector b = problem.getGoal().getPositiveFluents();
+        BitVector goalPosFluents = problem.getGoal().getPositiveFluents();
 
-        for (int idxState : convertBitArrayToListInteger(b)) {
+        for (int p = goalPosFluents.nextSetBit(0); p >= 0; p = goalPosFluents.nextSetBit(p + 1)) {
             // Some debugging infos
-            Fluent f = problem.getFluents().get((int) idxState);
+            Fluent f = problem.getFluents().get((int) p);
             prettyPrintFluent(f, problem);
 
-            // Add the fluent into the clauseInitState
+            // Add the fluent into the clauseGoalState
             int idxFluent = getFluentIdx(problem, f, numberSteps);
             VecInt clause = new VecInt(new int[] { idxFluent });
             clausesGoalState.push(clause);
-        }
 
-        // Add all the fluents that are not in the goal state as negative fluent in
-        // the clauseGoalState (TODO it is not optimize all all)
-        // TODO ASK IF WE HAVE TO DO IT (NOT CLEAR)
-        // int idxFluent;
-        // for (Fluent fluent : problem.getFluents()) {
-        // idxFluent = getFluentIdx(problem, fluent, numberSteps);
-        // if (!clauseGoalState.contains(getFluentIdx(problem, fluent, numberSteps))) {
-        // clauseGoalState.add(-idxFluent);
-        // }
-        // }
+            goalPosFluents.set(p);
+        }
 
         LOGGER.debug("Clause goal state: {}\n", clausesGoalState);
 
@@ -301,7 +325,7 @@ public class ASP extends AbstractPlanner<ADLProblem> {
         for (int timeStep = 0; timeStep < numberSteps; timeStep++) {
             for (Action action : problem.getActions()) {
 
-                /**
+                /*
                  * For each action at each time step, we have: a_i -> (^p for p in
                  * precondition__a_i) ^ (^e+ for e+ in effect+__a_i+1) ^ (^e- for e- in
                  * effect-__a_i+1)
@@ -313,59 +337,60 @@ public class ASP extends AbstractPlanner<ADLProblem> {
                 LOGGER.info("Precondition + action: \n");
 
                 // Get the states preconditions
-                b = action.getPrecondition().getPositiveFluents();
-                LOGGER.info("{}\n", b);
-                // for (int p = b.nextSetBit(0); p >= 0; p = b.nextSetBit(p + 1)) {
-                // b.set(p);
-                // }
-                for (int idxState : convertBitArrayToListInteger(b)) {
-                    // Some debugging infos
-                    f = problem.getFluents().get(idxState);
+                BitVector precondPos = action.getPrecondition().getPositiveFluents();
+                for (int p = precondPos.nextSetBit(0); p >= 0; p = precondPos.nextSetBit(p + 1)) {
+                    f = problem.getFluents().get(p);
                     prettyPrintFluent(f, problem);
 
                     // Add the fluent
                     int idxFluent = getFluentIdx(problem, f, timeStep);
                     VecInt clause = new VecInt(new int[] { -action_idx, idxFluent });
                     clausesActions.push(clause);
+                    precondPos.set(p);
                 }
 
                 LOGGER.info("Precondition - action: \n");
-                b = action.getPrecondition().getNegativeFluents();
-                for (int idxState : convertBitArrayToListInteger(b)) {
+                BitVector precondNeg = action.getPrecondition().getNegativeFluents();
+                for (int p = precondNeg.nextSetBit(0); p >= 0; p = precondNeg.nextSetBit(p + 1)) {
                     // Some debugging infos
-                    f = problem.getFluents().get(idxState);
+                    f = problem.getFluents().get(p);
                     prettyPrintFluent(f, problem);
 
                     // Add the fluent
                     int idxFluent = getFluentIdx(problem, f, timeStep);
                     VecInt clause = new VecInt(new int[] { -action_idx, -idxFluent });
                     clausesActions.push(clause);
+                    precondNeg.set(p);
                 }
 
                 LOGGER.info("Effect + action: \n");
-                b = action.getUnconditionalEffect().getPositiveFluents();
-                for (int idxState : convertBitArrayToListInteger(b)) {
+                BitVector effectPos = action.getUnconditionalEffect().getPositiveFluents();
+                for (int p = effectPos.nextSetBit(0); p >= 0; p = effectPos.nextSetBit(p + 1)) {
                     // Some debugging infos
-                    f = problem.getFluents().get(idxState);
+                    f = problem.getFluents().get(p);
                     prettyPrintFluent(f, problem);
 
                     // Add the fluent
                     int idxFluent = getFluentIdx(problem, f, timeStep + 1);
                     VecInt clause = new VecInt(new int[] { -action_idx, idxFluent });
                     clausesActions.push(clause);
+
+                    effectPos.set(p);
                 }
 
                 LOGGER.info("Effect - action: \n");
-                b = action.getUnconditionalEffect().getNegativeFluents();
-                for (int idxState : convertBitArrayToListInteger(b)) {
+                BitVector effectNeg = action.getUnconditionalEffect().getNegativeFluents();
+                for (int p = effectNeg.nextSetBit(0); p >= 0; p = effectNeg.nextSetBit(p + 1)) {
                     // Some debugging infos
-                    f = problem.getFluents().get(idxState);
+                    f = problem.getFluents().get(p);
                     prettyPrintFluent(f, problem);
 
                     // Add the fluent
                     int idxFluent = getFluentIdx(problem, f, timeStep + 1);
                     VecInt clause = new VecInt(new int[] { -action_idx, -idxFluent });
                     clausesActions.push(clause);
+
+                    effectNeg.set(p);
                 }
                 LOGGER.info("\n");
 
@@ -392,15 +417,18 @@ public class ASP extends AbstractPlanner<ADLProblem> {
         }
 
         for (Action action : problem.getActions()) {
-            List<Integer> positiveEffectAction = convertBitArrayToListInteger(
-                    action.getUnconditionalEffect().getPositiveFluents());
-            for (Integer stateIdx : positiveEffectAction) {
-                positiveEffectOnFluent[stateIdx].add(action);
+            BitVector effectPos = action.getUnconditionalEffect().getPositiveFluents();
+
+            for (int p = effectPos.nextSetBit(0); p >= 0; p = effectPos.nextSetBit(p + 1)) {
+                positiveEffectOnFluent[p].add(action);
+                effectPos.set(p);
             }
-            List<Integer> negativeEffectAction = convertBitArrayToListInteger(
-                    action.getUnconditionalEffect().getNegativeFluents());
-            for (Integer stateIdx : negativeEffectAction) {
-                negativeEffectOnFluent[stateIdx].add(action);
+
+            BitVector effectNeg = action.getUnconditionalEffect().getNegativeFluents();
+
+            for (int p = effectNeg.nextSetBit(0); p >= 0; p = effectNeg.nextSetBit(p + 1)) {
+                negativeEffectOnFluent[p].add(action);
+                effectNeg.set(p);
             }
         }
 
@@ -471,8 +499,7 @@ public class ASP extends AbstractPlanner<ADLProblem> {
                 int step = problem.getActions().size() + problem.getFluents().size();
 
                 for (int timeStep = 0; timeStep < numberSteps; timeStep++) {
-                    // int idxAction1 = getActionIdx(problem, action1, timeStep);
-                    // int idxAction2 = getActionIdx(problem, action2, timeStep);
+
                     int decalage = step * timeStep;
                     VecInt clause = new VecInt(
                             new int[] { -(initAction1Idx + decalage), -(initAction2Idx + decalage) });
@@ -489,7 +516,7 @@ public class ASP extends AbstractPlanner<ADLProblem> {
      * Taken from
      * https://sat4j.gitbooks.io/case-studies/content/using-sat4j-as-a-java-library.html
      */
-    public int[] solverSAT(Vec<IVecInt> allClauses) {
+    private int[] solverSAT(Vec<IVecInt> allClauses) {
         final int MAXVAR = 1000000;
 
         LOGGER.info("Number clauses: {}\n", allClauses.size());
@@ -523,18 +550,17 @@ public class ASP extends AbstractPlanner<ADLProblem> {
         } catch (TimeoutException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
-            return null;
+            return null; //
         }
     }
 
     /**
-     * Encode a problem into its conjunctive normal form 
+     * Encode a problem into its conjunctive normal form.
      * 
      * @param problem Problem to encode
      * @return The conjunctive normal form of the problem
      */
-    private Vec<IVecInt> encodeProblemAsCNF(ADLProblem problem, int numberSteps)
-    {
+    private Vec<IVecInt> encodeProblemAsCNF(ADLProblem problem, int numberSteps) {
         LOGGER.info("Encode the inital state into clauses\n");
         Vec<IVecInt> clausesInitState = encodeInitialState(problem, numberSteps);
         LOGGER.info("Encode the final state into clauses\n");
@@ -546,8 +572,9 @@ public class ASP extends AbstractPlanner<ADLProblem> {
         LOGGER.info("Encode complete excusion axiom into clauses\n");
         Vec<IVecInt> clausesCompleteExclusionAxioms = encodeCompleteExclusionAxioms(problem, numberSteps);
 
-        // Merge all the clauses into a single one
-        Vec<IVecInt> allClauses = new Vec<IVecInt>();
+        // Merge all the clauses into a single vector
+        Vec<IVecInt> allClauses = new Vec<IVecInt>(clausesInitState.size() + clausesGoalState.size()
+                + clausesActions.size() + clausesExplanatoryFrameAxioms.size() + clausesCompleteExclusionAxioms.size());
         clausesInitState.copyTo(allClauses);
         clausesGoalState.copyTo(allClauses);
         clausesActions.copyTo(allClauses);
@@ -558,13 +585,12 @@ public class ASP extends AbstractPlanner<ADLProblem> {
     }
 
     /**
-     * Construct the plan from the model given as parameter
+     * Construct the plan from the model given as parameter.
      * 
      * @param model Model of the problem
      * @return the plan construct from the model
      */
-    private Plan constructPlanFromModel(int[] model, ADLProblem problem)
-    {
+    private Plan constructPlanFromModel(int[] model, ADLProblem problem) {
         Plan plan = new SequentialPlan();
         int idxActionInPlan = 0;
         for (Integer idx : model) {
@@ -580,7 +606,7 @@ public class ASP extends AbstractPlanner<ADLProblem> {
     }
 
     /**
-     * Search a solution plan to a specified domain and problem using A*.
+     * Search a solution plan to a specified domain using a SAT solver
      *
      * @param problem the problem to solve.
      * @return the plan found or null if no plan was found.
@@ -601,7 +627,7 @@ public class ASP extends AbstractPlanner<ADLProblem> {
         }
 
         LOGGER.info("\n\nFirst convert the problem into a bounding problem (i.e, define a max step)\n");
-        int n = 10;
+        int n = 11;
         LOGGER.info("Max step choosen: {}\n", n);
 
         // Encode the problem into its CNF form
@@ -611,13 +637,12 @@ public class ASP extends AbstractPlanner<ADLProblem> {
         this.getStatistics()
                 .setTimeToEncode(this.getStatistics().getTimeToEncode() + (endEncodeTime - beginEncodeTime));
 
-
-        // We have encoded the full problem into its CNF form, now, pass it to the solver
+        // We have encoded the full problem into its CNF form, now, pass it to the
+        // solver
         final long beginSolveTime = System.currentTimeMillis();
         LOGGER.info("Launch the solver !\n");
         int[] model = solverSAT(allClauses);
-        if (model == null)
-        {
+        if (model == null) {
             LOGGER.error("Failed to find a model\n");
             return null;
         }
@@ -626,6 +651,12 @@ public class ASP extends AbstractPlanner<ADLProblem> {
         Plan plan = constructPlanFromModel(model, problem);
         final long endSolveTime = System.currentTimeMillis();
         this.getStatistics().setTimeToSearch(endSolveTime - beginSolveTime);
+
+        // If a plan is found and the option to write the plan to file is given by the
+        // user, do it now
+        if (outputFullFileName != null) {
+            writePlanToFile(problem.toString(plan));
+        }
 
         return plan;
     }

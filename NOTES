@@ -34,7 +34,29 @@ UNDERSTAND WHY PLAN IS INVALID !!
 
 SOME POSITIVE FLUENT ARE MISSING ON SOME ACTIONS ?!!? action.getPrecondition().getPositiveFluents() does not return all the positive fluents sometimes ?!!? I think that I do not have understand BitVector
 
+BUG -> ADL DOES NOT WORKS BECAUSE FORGET TO ADD CONDITIONNAL EFFECT IN ADDITION TO UNCONDITIONNAL EFFECT !!!!!!!!!!
+
+
+FOR STRIP LANGUAGE: 
 SEEMS LIKE THE ORDER OF THE ACTIONS IS WRONG ?!
+
+When we look at the procondition of the actions, some actions does not contains all the preconditions ??!
+
+For example, with the file benchmarks/pddl/ipc1998/logistics/strips-round1/p01.pddl with domain benchmarks/pddl/ipc1998/logistics/strips-round1/domain.pddl
+load as a ADLProblem, 
+
+we have for the first action:
+
+problem.getActions().get(0).getName() <---- CORRESPOND TO ACTION load-truck package6 truck6 city6-1
+"load-truck"
+problem.getActions().get(0).getPrecondition().getPositiveFluents()
+BitVector@81 "{0}" <- SHOULD CONTAINS TWO VALUES SINCE THERE ARE TWO PRECONDITIONS TO MEET (FLUENTS at package6 city6-1 and at truck6 city 6-1)  ? there is only (at package6 city6-1) here
+
+
+problem.getActions().get(1).getPrecondition().getPositiveFluents()
+BitVector@85 "{2, 3}" <--- CORRECT
+problem.getActions().get(2).getPrecondition().getPositiveFluents()
+BitVector@77 "{4, 5}" <--- CORRECT
 
 To understand fluent: 
 
@@ -69,4 +91,7 @@ Pour les slides de cours, sur la page action (page 12, ça ne devrait pas être 
 
 NOTES: 
 
-CODE does not seems to work on ADDL ?!?
+CODE does not seems to work on ADDL ?!? -> Because I do not use conditionnal variables in my code
+
+My solver extends ADLProblem since it seems that it does have all the functions I needed. SHould I extends from another problem ? 
+SHould the code use conditionnal confition ? 
