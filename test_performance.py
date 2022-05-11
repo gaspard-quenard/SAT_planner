@@ -4,9 +4,47 @@ import logging
 import os
 import subprocess
 
-PATH_BENCHMARKS = ["benchmarks/ipc1/gripper"]  # , "benchmarks/ipc1/logistics",
+PATH_BENCHMARKS = ["benchmarks/blocksworld"]  # , "benchmarks/ipc1/logistics",
 # "benchmarks/ipc2/blocksworld", "benchmarks/ipc3/depot"]
 PATH_OUTPUT = ""
+
+PATH_PDDL4J_LIB = "app/libs/pddl4j-4.0.0.jar"
+PATH_CLASS_HSP_IN_PDDL4J = "fr.uga.pddl4j.planners.statespace.HSP"
+
+
+def launch_sat_planner(full_path_file_domain: str, full_path_file_problem: str) -> None:
+
+    command = ["./gradlew",
+               "run",
+               "--args",
+               "{domain_file} {problem_file}".format(
+                   domain_file=full_path_file_domain, problem_file=full_path_file_problem)
+               ]
+
+    print(command)
+
+    output = subprocess.run(
+        command, check=True, stdout=subprocess.PIPE, universal_newlines=True)
+
+    print(output.stdout)
+
+
+def launch_hsp_planner(full_path_file_domain: str, full_path_file_problem: str) -> None:
+
+    command = ["java",
+               "-cp",
+               PATH_PDDL4J_LIB,
+               PATH_CLASS_HSP_IN_PDDL4J,
+               full_path_file_domain,
+               full_path_file_problem]
+
+    print(command)
+
+    output = subprocess.run(
+        command, check=True, stdout=subprocess.PIPE, universal_newlines=True)
+
+    print(output.stdout)
+
 
 if __name__ == '__main__':
 
@@ -18,7 +56,7 @@ if __name__ == '__main__':
             "Test benchmark {benchmark_name}".format(benchmark_name=path_benchmark))
 
         # Load all the problems
-        files_in_benchmark = os.listdir(path_benchmark)
+        files_in_benchmark = sorted(os.listdir(path_benchmark))
 
         if ("domain.pddl" not in files_in_benchmark):
             logging.error(
@@ -30,16 +68,16 @@ if __name__ == '__main__':
 
         full_path_benchmark = os.path.abspath(path_benchmark)
 
+        full_path_file_domain = os.path.join(
+            full_path_benchmark, "domain.pddl")
+
         files_in_benchmark.remove("domain.pddl")
 
         for problem_file in files_in_benchmark:
-            # Launch gradlew run
-            command = ["./gradlew", "run", "--args=\"{domain_file} {problem_file}\"".format(domain_file=os.path.join(
-                full_path_benchmark, "domain.pddl"), problem_file=os.path.join(full_path_benchmark, problem_file))]
 
-            print(command)
+            full_path_file_problem = os.path.join(
+                full_path_benchmark, problem_file)
 
-            output = subprocess.run(
-                command, check=True, stdout=subprocess.PIPE, universal_newlines=True)
-
+            launch_sat_planner(full_path_file_domain=full_path_file_domain,
+                               full_path_file_problem=full_path_file_problem)
             exit(0)

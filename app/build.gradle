@@ -41,7 +41,7 @@ dependencies {
 
 application {
     // Define the main class for the application.
-    mainClass = 'demo.ASP'
+    mainClass = 'demo.SAT'
 }
 
 tasks.named('test') {

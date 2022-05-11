@@ -12,17 +12,17 @@
         },
         {
             "type": "java",
-            "name": "Launch ASP",
+            "name": "Launch SAT",
             "request": "launch",
-            "mainClass": "demo.ASP",
+            "mainClass": "demo.SAT",
             "projectName": "app",
             "args": "/home/gaspard/Programming/AI_Planning/demo/benchmarks/simple_example/domain.pddl /home/gaspard/Programming/AI_Planning/demo/benchmarks/simple_example/problem.pddl"
         },
         {
             "type": "java",
-            "name": "Launch invalid ASP",
+            "name": "Launch invalid SAT",
             "request": "launch",
-            "mainClass": "demo.ASP",
+            "mainClass": "demo.SAT",
             "projectName": "app",
             "args": "/home/gaspard/Programming/AI_Planning/demo/benchmarks/ipc1/gripper/domain.pddl /home/gaspard/Programming/AI_Planning/demo/benchmarks/ipc1/gripper/p01.pddl"
         },
