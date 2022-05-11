@@ -296,7 +296,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
         for (int p = initStatePosFluents.nextSetBit(0); p >= 0; p = initStatePosFluents.nextSetBit(p + 1)) {
             // Some debugging infos
             Fluent f = problem.getFluents().get(p);
-            prettyPrintFluent(f, problem);
+            // prettyPrintFluent(f, problem);
 
             fluentsNotInInitState.remove(p);
 
@@ -335,7 +335,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
         for (int p = goalPosFluents.nextSetBit(0); p >= 0; p = goalPosFluents.nextSetBit(p + 1)) {
             // Some debugging infos
             Fluent f = problem.getFluents().get((int) p);
-            prettyPrintFluent(f, problem);
+            // prettyPrintFluent(f, problem);
 
             // Add the fluent into the clauseGoalState
             int idxFluent = getFluentUniqueIDforTimeStep(problem, f, planSize);
@@ -345,7 +345,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
             goalPosFluents.set(p);
         }
 
-        LOGGER.debug("Clause goal state: {}\n", clausesGoalState);
+        // LOGGER.debug("Clause goal state: {}\n", clausesGoalState);
 
         return clausesGoalState;
     }
@@ -376,15 +376,15 @@ public class SAT extends AbstractPlanner<ADLProblem> {
                  */
                 int actionUniqueIDforTimeStep = getActionUniqueIDforTimeStep(problem, action, timeStep); // Gives a_i
 
-                prettyPrintAction(action, problem);
+                // prettyPrintAction(action, problem);
 
-                LOGGER.info("Precondition + action: \n");
+                // LOGGER.info("Precondition + action: \n");
 
                 // Get the states preconditions
                 BitVector precondPos = action.getPrecondition().getPositiveFluents();
                 for (int p = precondPos.nextSetBit(0); p >= 0; p = precondPos.nextSetBit(p + 1)) {
                     f = problem.getFluents().get(p);
-                    prettyPrintFluent(f, problem);
+                    // prettyPrintFluent(f, problem);
 
                     // Add the fluent
                     int fluentUniqueIDforTimeStep = getFluentUniqueIDforTimeStep(problem, f, timeStep);
@@ -393,12 +393,12 @@ public class SAT extends AbstractPlanner<ADLProblem> {
                     precondPos.set(p);
                 }
 
-                LOGGER.info("Precondition - action: \n");
+                // LOGGER.info("Precondition - action: \n");
                 BitVector precondNeg = action.getPrecondition().getNegativeFluents();
                 for (int p = precondNeg.nextSetBit(0); p >= 0; p = precondNeg.nextSetBit(p + 1)) {
                     // Some debugging infos
                     f = problem.getFluents().get(p);
-                    prettyPrintFluent(f, problem);
+                    // prettyPrintFluent(f, problem);
 
                     // Add the fluent
                     int idxFluent = getFluentUniqueIDforTimeStep(problem, f, timeStep);
@@ -407,12 +407,12 @@ public class SAT extends AbstractPlanner<ADLProblem> {
                     precondNeg.set(p);
                 }
 
-                LOGGER.info("Effect + action: \n");
+                // LOGGER.info("Effect + action: \n");
                 BitVector effectPos = action.getUnconditionalEffect().getPositiveFluents();
                 for (int p = effectPos.nextSetBit(0); p >= 0; p = effectPos.nextSetBit(p + 1)) {
                     // Some debugging infos
                     f = problem.getFluents().get(p);
-                    prettyPrintFluent(f, problem);
+                    // prettyPrintFluent(f, problem);
 
                     // Add the fluent
                     int idxFluent = getFluentUniqueIDforTimeStep(problem, f, timeStep + 1);
@@ -422,12 +422,12 @@ public class SAT extends AbstractPlanner<ADLProblem> {
                     effectPos.set(p);
                 }
 
-                LOGGER.info("Effect - action: \n");
+                // LOGGER.info("Effect - action: \n");
                 BitVector effectNeg = action.getUnconditionalEffect().getNegativeFluents();
                 for (int p = effectNeg.nextSetBit(0); p >= 0; p = effectNeg.nextSetBit(p + 1)) {
                     // Some debugging infos
                     f = problem.getFluents().get(p);
-                    prettyPrintFluent(f, problem);
+                    // prettyPrintFluent(f, problem);
 
                     // Add the fluent
                     int idxFluent = getFluentUniqueIDforTimeStep(problem, f, timeStep + 1);
@@ -436,12 +436,12 @@ public class SAT extends AbstractPlanner<ADLProblem> {
 
                     effectNeg.set(p);
                 }
-                LOGGER.info("\n");
+                // LOGGER.info("\n");
 
             }
         }
 
-        LOGGER.debug("Clauses action: {}\n", clausesActions);
+        // LOGGER.debug("Clauses action: {}\n", clausesActions);
 
         return clausesActions;
     }
@@ -457,8 +457,9 @@ public class SAT extends AbstractPlanner<ADLProblem> {
 
         Vec<IVecInt> clausesExplanatoryFrameAxioms = new Vec<IVecInt>();
 
-        // For each fluent, initialize a list which will contains all the actions that
-        // have this fluent as positive effects
+        // For each fluent, initialize two lists which will contains all the actions
+        // that
+        // have this fluent as positive effects or negative effects
         ArrayList<Action>[] positiveEffectOnFluent = (ArrayList<Action>[]) new ArrayList[problem.getFluents().size()];
         ArrayList<Action>[] negativeEffectOnFluent = (ArrayList<Action>[]) new ArrayList[problem.getFluents().size()];
 
@@ -492,7 +493,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
                     Fluent f = problem.getFluents().get(stateIdx);
                     VecInt clause = new VecInt();
 
-                    prettyPrintFluent(f, problem);
+                    // prettyPrintFluent(f, problem);
 
                     // Add the fluent into the clause
                     clause.push(getFluentUniqueIDforTimeStep(problem, f, timeStep));
@@ -500,7 +501,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
 
                     // And add all the acttons which have this fluent has positive effect
                     for (Action action : positiveEffectOnFluent[stateIdx]) {
-                        prettyPrintAction(action, problem);
+                        // prettyPrintAction(action, problem);
                         clause.push(getActionUniqueIDforTimeStep(problem, action, timeStep));
                     }
 
@@ -527,7 +528,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
             }
         }
 
-        LOGGER.debug("Explanatory frames: {}\n", clausesExplanatoryFrameAxioms);
+        // LOGGER.debug("Explanatory frames: {}\n", clausesExplanatoryFrameAxioms);
         return clausesExplanatoryFrameAxioms;
     }
 
@@ -542,7 +543,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
 
         Vec<IVecInt> clausesCompleteExclusionAxioms = new Vec<IVecInt>();
 
-        LOGGER.info("NUMBER ACTIONS: {}", problem.getActions().size());
+        // LOGGER.info("NUMBER ACTIONS: {}", problem.getActions().size());
 
         for (int iteratorAction1 = 0; iteratorAction1 < problem.getActions().size(); iteratorAction1++) {
             // LOGGER.info("{}/{}\n", iteratorAction1, problem.getActions().size());
@@ -590,7 +591,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
     private int[] solverSAT(Vec<IVecInt> allClauses, ADLProblem problem) {
         final int MAXVAR = 1000000;
 
-        LOGGER.info("Number clauses: {}\n", allClauses.size());
+        // LOGGER.info("Number clauses: {}\n", allClauses.size());
 
         ISolver solver = SolverFactory.newDefault();
 
@@ -601,30 +602,22 @@ public class SAT extends AbstractPlanner<ADLProblem> {
         try {
             solver.addAllClauses(allClauses);
         } catch (ContradictionException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
             return null;
-        } // adapt Array to IVecInt
+        }
 
-        LOGGER.info("Set verbose of solver to true\n");
-        solver.setVerbose(true);
-
-        // we are done. Working now on the IProblem interface
-        IProblem problem = solver;
+        IProblem problemSAT = solver;
         try {
-            if (problem.isSatisfiable()) {
+            if (problemSAT.isSatisfiable()) {
                 LOGGER.info("Is satisfiable !\n");
-                // LOGGER.info("MODEL: {}\n", problem.model());
-                return problem.model();
+                return problemSAT.model();
 
             } else {
                 LOGGER.error("Is not satisfiable\n");
                 return null;
             }
         } catch (TimeoutException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-            return null; //
+            LOGGER.error("Timeout !\n");
+            return null;
         }
     }
 
@@ -670,8 +663,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
         for (Integer idx : model) {
             Action a = getActionWithIdx(problem, idx);
             if (a != null) {
-                LOGGER.info("{}  ", idx);
-                prettyPrintAction(a, problem);
+                // prettyPrintAction(a, problem);
                 plan.add(idxActionInPlan, a);
                 idxActionInPlan++;
             }
@@ -688,20 +680,20 @@ public class SAT extends AbstractPlanner<ADLProblem> {
     @Override
     public Plan solve(final ADLProblem problem) {
 
-        // Print all the fluent of the problems to have a better understanding of it
-        LOGGER.info("All fluents of the problem:\n");
-        for (Fluent f : problem.getFluents()) {
-            prettyPrintFluent(f, problem);
-        }
+        // // Print all the fluent of the problems to have a better understanding of it
+        // LOGGER.info("All fluents of the problem:\n");
+        // for (Fluent f : problem.getFluents()) {
+        // prettyPrintFluent(f, problem);
+        // }
 
-        // Print all the actions of the problems to have a better understanding of it
-        LOGGER.info("All actions of the problem:\n");
-        for (Action a : problem.getActions()) {
-            prettyPrintAction(a, problem);
-        }
+        // // Print all the actions of the problems to have a better understanding of it
+        // LOGGER.info("All actions of the problem:\n");
+        // for (Action a : problem.getActions()) {
+        // prettyPrintAction(a, problem);
+        // }
 
-        LOGGER.info("\n\nFirst convert the problem into a bounding problem (i.e, define a max step)\n");
-        int n = 6;
+        LOGGER.info("First convert the problem into a bounding problem (i.e, define a max step)\n");
+        int n = 2;
         LOGGER.info("Max step choosen: {}\n", n);
 
         // Encode the problem into its CNF form
