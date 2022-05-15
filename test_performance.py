@@ -139,7 +139,7 @@ if __name__ == '__main__':
 
         if ("domain.pddl" not in files_in_benchmark):
             logging.error(
-                "Domain file does not exist for benchmark path: {benchmark_path}".format(benchmark_path=path_benchmark))
+                "Domain file does not exist for benchmark path: {benchmark_path}. Skip this benchmark".format(benchmark_path=path_benchmark))
             continue
 
         logging.info("Domain file found for benchmark path: {benchmark_path}".format(
@@ -165,8 +165,13 @@ if __name__ == '__main__':
                                                           full_path_file_domain=full_path_file_domain,
                                                           full_path_file_problem=full_path_file_problem)
 
+            if (plan_sat == None):
+                logging.error("Failed to find a plan for problem {problem_name} of benchmark {benchmark_name} with SAT planner".format(
+                    problem_name=problem_file, benchmark_name=path_benchmark))
+                exit(1)
+
             if (CHECK_SAT_PLAN_VALIDITY):
-                # We need to write the plan into a file to be able to check the plan validity with VAL
+                # Write the plan into a file to be able to check the plan validity with VAL
                 plan_file_name = "tmp_plan_{}".format(problem_file)
                 full_path_file_plan = os.path.join(
                     full_path_benchmark, plan_file_name)
@@ -177,12 +182,23 @@ if __name__ == '__main__':
                                                     full_path_file_problem=full_path_file_problem,
                                                     full_path_file_plan=full_path_file_plan)
 
-                # Delete the file
+                # Delete the plan file
                 os.remove(os.path.join(full_path_benchmark, plan_file_name))
 
-                print("SAT plan is valid: {}".format(plan_is_valid))
+                if (not plan_is_valid):
+                    logging.error("SAT Plan is invalid for problem {problem_name} of benchmark {benchmark_name}".format(
+                        problem_name=problem_file, benchmark_name=path_benchmark))
+                    exit(1)
+                else:
+                    logging.info("SAT Plan is valid for problem {problem_name} of benchmark {benchmark_name}".format(
+                        problem_name=problem_file, benchmark_name=path_benchmark))
+
+            logging.info("Size plan: {size_plan}, total time: {total_runtime} s".format(
+                size_plan=len(plan_sat), total_runtime=total_run_time_sat))
 
             # logging.info("Launch HSP planner")
-            # launch_planner(Planner.HSP, full_path_file_domain=full_path_file_domain,
-            #                full_path_file_problem=full_path_file_problem)
-            exit(0)
+            # plan_hsp, total_run_time_hsp = launch_planner(Planner.HSP, full_path_file_domain=full_path_file_domain,
+            #                                               full_path_file_problem=full_path_file_problem)
+
+            # logging.info("Size plan: {size_plan}, total time: {total_runtime} s".format(
+            #     size_plan=len(plan_hsp), total_runtime=total_run_time_hsp))

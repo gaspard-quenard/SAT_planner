@@ -40,14 +40,16 @@ import picocli.CommandLine;
  *
  * <pre>
  * {@code
- * FF [-hV] [-l=<logLevel>] [-t=<timeout>] [-o=<writePlanTo>] <domain>
+ * FF [-hV] [-l=<logLevel>] [-t=<timeout>] [-i=<InitialNumberSteps>][-o=<writePlanTo>] <domain>
  *             <problem>
  *
  * Description:
  *
- * Solves a specified planning problem by encoding it into its CNF form and 
+ * Solves a specified planning problem by transforming the problem into a bounding problem
+ * (defined the maximum number of actions to resolve the problem) encoding it into its CNF form and 
  * launching a solver SAT (taken from the library sat4j) on the CNF encoding 
- * generated
+ * generated. If no plan is found, try again by doubling the maximum number of steps for
+ * the bounding problem until the timeout is reached. 
  *
  * Parameters:
  *       <domain>              The domain file.
@@ -58,6 +60,7 @@ import picocli.CommandLine;
  *                               FATAL, OFF, TRACE (preset INFO).
  *   -t, --timeout=<timeout>   Set the time out of the planner in seconds (
  *                               preset 600s).
+ *   -s, --sizePlan=<sizePlan> Set the length of the plan (preset 2)
  *   -o, --write-plan-to=<outputFullPath>  If a plan is found write the plan to the file path provided
  *   -h, --help                Show this help message and exit.
  *   -V, --version             Print version information and exit.
@@ -92,6 +95,11 @@ public class SAT extends AbstractPlanner<ADLProblem> {
     private String outputFullFileName = null;
 
     /**
+     * Number of step of the bounding problem.
+     */
+    private int sizePlan = 2;
+
+    /**
      * Instantiates the planning problem from a parsed problem.
      *
      * @param problem the problem to instantiate.
@@ -120,6 +128,22 @@ public class SAT extends AbstractPlanner<ADLProblem> {
             throw new IllegalArgumentException("Incorrect path provided");
         }
         this.outputFullFileName = outputFullPathFile;
+    }
+
+    /**
+     * Command line option to set the initial length of the plan (i.e maximum number
+     * of action
+     * required to resolve the problem).
+     * 
+     * @param sizePlan Length of the plan
+     */
+    @CommandLine.Option(names = { "-s",
+            "--size-plan" }, paramLabel = "<sizePlan>", description = "Set the length of the plan")
+    public void setsizePlan(final int sizePlan) {
+        if (sizePlan < 0) {
+            throw new IllegalArgumentException("Incorrect length plan given");
+        }
+        this.sizePlan = sizePlan;
     }
 
     /**
@@ -587,17 +611,19 @@ public class SAT extends AbstractPlanner<ADLProblem> {
      *         each ID is given to the actions and fluents)
      *         if the problem is
      *         satisfiable else null
+     * @throws TimeoutException Throw a timeout exeception if the solver failed to
+     *                          find a solution in the timeout
      */
-    private int[] solverSAT(Vec<IVecInt> allClauses, ADLProblem problem) {
-        final int MAXVAR = 1000000;
-
-        // LOGGER.info("Number clauses: {}\n", allClauses.size());
+    private int[] solverSAT(Vec<IVecInt> allClauses, ADLProblem problem) throws TimeoutException {
+        final int MAXVAR = (problem.getFluents().size() + problem.getActions().size()) * (this.sizePlan - 1)
+                + problem.getFluents().size();
 
         ISolver solver = SolverFactory.newDefault();
 
         // prepare the solver to accept MAXVAR variables. MANDATORY for MAXSAT solving
         solver.newVar(MAXVAR);
         solver.setExpectedNumberOfClauses(allClauses.size());
+        solver.setTimeout(this.getTimeout());
 
         try {
             solver.addAllClauses(allClauses);
@@ -617,7 +643,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
             }
         } catch (TimeoutException e) {
             LOGGER.error("Timeout !\n");
-            return null;
+            throw new TimeoutException("Timeout to find a model for the problem");
         }
     }
 
@@ -692,33 +718,49 @@ public class SAT extends AbstractPlanner<ADLProblem> {
         // prettyPrintAction(a, problem);
         // }
 
-        LOGGER.info("First convert the problem into a bounding problem (i.e, define a max step)\n");
-        int n = 2;
-        LOGGER.info("Max step choosen: {}\n", n);
+        int[] model;
 
-        // Encode the problem into its CNF form
-        final long beginEncodeTime = System.currentTimeMillis();
-        Vec<IVecInt> allClauses = encodeProblemAsCNF(problem, n);
-        final long endEncodeTime = System.currentTimeMillis();
-        this.getStatistics()
-                .setTimeToEncode(this.getStatistics().getTimeToEncode() + (endEncodeTime - beginEncodeTime));
+        while (true) {
 
-        // We have encoded the full problem into its CNF form, now, pass it to the
-        // solver
-        final long beginSolveTime = System.currentTimeMillis();
-        LOGGER.info("Launch the solver !\n");
-        int[] model = solverSAT(allClauses, problem);
-        if (model == null) {
-            LOGGER.error("Failed to find a model\n");
-            return null;
+            LOGGER.info("Encode the model for a plan of maximum size: {}\n", this.sizePlan);
+
+            // Encode the problem into its CNF form
+            final long beginEncodeTime = System.currentTimeMillis();
+            Vec<IVecInt> allClauses = encodeProblemAsCNF(problem, this.sizePlan);
+            final long endEncodeTime = System.currentTimeMillis();
+            this.getStatistics()
+                    .setTimeToEncode(this.getStatistics().getTimeToEncode() + (endEncodeTime - beginEncodeTime));
+
+            // We have encoded the full problem into its CNF form, now, pass it to the
+            // solver
+            final long beginSolveTime = System.currentTimeMillis();
+            LOGGER.info("Launch the solver !\n");
+            try {
+                model = solverSAT(allClauses, problem);
+            } catch (TimeoutException e) {
+                return null;
+            }
+
+            final long endSolveTime = System.currentTimeMillis();
+            this.getStatistics()
+                    .setTimeToSearch(this.getStatistics().getTimeToSearch() + endSolveTime - beginSolveTime);
+
+            if (model == null) {
+                LOGGER.info(
+                        "Failed to model a model with a maximum number of actions = {}.\n",
+                        this.sizePlan);
+
+                this.sizePlan += 1;
+            } else {
+                break;
+            }
+
         }
 
         // Construct the plan from the model
         Plan plan = constructPlanFromModel(model, problem);
-        final long endSolveTime = System.currentTimeMillis();
-        this.getStatistics().setTimeToSearch(endSolveTime - beginSolveTime);
 
-        // If a plan is found and the option to write the plan to file is given by the
+        // If the option to write the plan to file is given by the
         // user, do it now
         if (outputFullFileName != null) {
             writePlanToFile(problem.toString(plan));
