@@ -615,8 +615,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
      *                          find a solution in the timeout
      */
     private int[] solverSAT(Vec<IVecInt> allClauses, ADLProblem problem) throws TimeoutException {
-        final int MAXVAR = (problem.getFluents().size() + problem.getActions().size()) * (this.sizePlan - 1)
-                + problem.getFluents().size();
+        final int MAXVAR = (problem.getFluents().size() + problem.getActions().size()) * this.sizePlan;
 
         ISolver solver = SolverFactory.newDefault();
 
@@ -738,6 +737,9 @@ public class SAT extends AbstractPlanner<ADLProblem> {
             try {
                 model = solverSAT(allClauses, problem);
             } catch (TimeoutException e) {
+                final long endSolveTime = System.currentTimeMillis();
+                this.getStatistics()
+                        .setTimeToSearch(this.getStatistics().getTimeToSearch() + endSolveTime - beginSolveTime);
                 return null;
             }
 

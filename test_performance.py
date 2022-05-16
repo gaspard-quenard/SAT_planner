@@ -11,12 +11,14 @@ from enum import Enum
 
 PATH_BENCHMARKS = ["benchmarks/blocksworld"]  # , "benchmarks/ipc1/logistics",
 # "benchmarks/ipc2/blocksworld", "benchmarks/ipc3/depot"]
-PATH_OUTPUT = ""
+PATH_OUTPUT = "stats.txt"
 
 PATH_PDDL4J_LIB = "app/libs/pddl4j-4.0.0.jar"
 PATH_CLASS_HSP_IN_PDDL4J = "fr.uga.pddl4j.planners.statespace.HSP"
 
 PATH_VAL_LIB = "VAL/bin/Validate"
+
+TIMEOUT_S = 3600
 
 # Flag to check the plan validity for the planner SAT
 CHECK_SAT_PLAN_VALIDITY = True
@@ -80,8 +82,8 @@ def launch_planner(planner: Planner, full_path_file_domain: str, full_path_file_
         command = ["./gradlew",
                    "run",
                    "--args",
-                   "{domain_file} {problem_file}".format(
-                       domain_file=full_path_file_domain, problem_file=full_path_file_problem)
+                   "{domain_file} {problem_file} -t {timeout}".format(
+                       domain_file=full_path_file_domain, problem_file=full_path_file_problem, timeout=TIMEOUT_S)
                    ]
     elif (planner == Planner.HSP):
         command = ["java",
@@ -89,7 +91,9 @@ def launch_planner(planner: Planner, full_path_file_domain: str, full_path_file_
                    PATH_PDDL4J_LIB,
                    PATH_CLASS_HSP_IN_PDDL4J,
                    full_path_file_domain,
-                   full_path_file_problem]
+                   full_path_file_problem,
+                   "-t",
+                   str(TIMEOUT_S)]
     else:
         logging.error("Incorrect planner provided")
         return (None, None)
@@ -168,9 +172,9 @@ if __name__ == '__main__':
             if (plan_sat == None):
                 logging.error("Failed to find a plan for problem {problem_name} of benchmark {benchmark_name} with SAT planner".format(
                     problem_name=problem_file, benchmark_name=path_benchmark))
-                exit(1)
+                plan_sat = []
 
-            if (CHECK_SAT_PLAN_VALIDITY):
+            elif (CHECK_SAT_PLAN_VALIDITY):
                 # Write the plan into a file to be able to check the plan validity with VAL
                 plan_file_name = "tmp_plan_{}".format(problem_file)
                 full_path_file_plan = os.path.join(
@@ -196,9 +200,25 @@ if __name__ == '__main__':
             logging.info("Size plan: {size_plan}, total time: {total_runtime} s".format(
                 size_plan=len(plan_sat), total_runtime=total_run_time_sat))
 
-            # logging.info("Launch HSP planner")
-            # plan_hsp, total_run_time_hsp = launch_planner(Planner.HSP, full_path_file_domain=full_path_file_domain,
-            #                                               full_path_file_problem=full_path_file_problem)
+            logging.info("Launch HSP planner")
+            plan_hsp, total_run_time_hsp = launch_planner(Planner.HSP, full_path_file_domain=full_path_file_domain,
+                                                          full_path_file_problem=full_path_file_problem)
 
-            # logging.info("Size plan: {size_plan}, total time: {total_runtime} s".format(
-            #     size_plan=len(plan_hsp), total_runtime=total_run_time_hsp))
+            if (plan_hsp == None):
+                logging.error("Failed to find a plan for problem {problem_name} of benchmark {benchmark_name} with HSP planner".format(
+                    problem_name=problem_file, benchmark_name=path_benchmark))
+                plan_hsp = []
+
+            logging.info("Size plan: {size_plan}, total time: {total_runtime} s".format(
+                size_plan=len(plan_hsp), total_runtime=total_run_time_hsp))
+
+            with open(PATH_OUTPUT, 'a') as f:
+                line_to_write = "{benchmark_name},{problem_name},{size_plan_sat},{total_run_time_sat},{size_plan_hsp},{total_run_time_hsp}\n".format(
+                    benchmark_name=path_benchmark,
+                    problem_name=problem_file,
+                    size_plan_sat=len(plan_sat),
+                    total_run_time_sat=total_run_time_sat,
+                    size_plan_hsp=len(plan_hsp),
+                    total_run_time_hsp=total_run_time_hsp
+                )
+                f.write(line_to_write)
