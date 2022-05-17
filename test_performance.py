@@ -8,17 +8,27 @@ from typing import List, Tuple
 import subprocess
 import re
 from enum import Enum
+import shlex
+import time
 
-PATH_BENCHMARKS = ["benchmarks/blocksworld"]  # , "benchmarks/ipc1/logistics",
-# "benchmarks/ipc2/blocksworld", "benchmarks/ipc3/depot"]
-PATH_OUTPUT = "stats.txt"
+PATH_BENCHMARKS = [
+    "benchmarks/blocksworld",
+    "benchmarks/logistics",
+    "benchmarks/gripper",
+    "benchmarks/depot"
+]
 
+PATH_OUTPUT = "stats_first_15_levels_with_imcrement.txt"
+
+# Path to the binary of the pddl4j lib
 PATH_PDDL4J_LIB = "app/libs/pddl4j-4.0.0.jar"
 PATH_CLASS_HSP_IN_PDDL4J = "fr.uga.pddl4j.planners.statespace.HSP"
 
+# Path to the binary of the library used to check if a plan is valid
 PATH_VAL_LIB = "VAL/bin/Validate"
 
-TIMEOUT_S = 3600
+# Timeout of the planner in second
+TIMEOUT_S = 1800
 
 # Flag to check the plan validity for the planner SAT
 CHECK_SAT_PLAN_VALIDITY = True
@@ -29,9 +39,14 @@ class Planner(Enum):
     SAT = 1
 
 
-def extract_plan_from_output(output_command: str) -> str:
-    """
-    Extract plan from the output of command line. If no plan is found, return None
+def extract_plan_from_output(output_command: str) -> List[str]:
+    """ Extract plan from the output of command line which launch a planner. If no plan is found, return None
+
+    Args:
+        output_command (str): stdout of the command line which launch a planner
+
+    Returns:
+        List[str]: The plan as a list of strings where each value of the list as index i correspond to the action of the plan at index i. Return None if no plan is found
     """
 
     all_lines_output = output_command.splitlines()
@@ -51,66 +66,59 @@ def extract_plan_from_output(output_command: str) -> str:
         return None
 
 
-def extract_total_runtime_from_output(output_command: str) -> float:
-    """
-    Extract total runtime from the output of command line. If the total runtime is not found, return 0
-    """
-
-    all_lines_output = output_command.splitlines()
-
-    line_total_runtime = [
-        line for line in all_lines_output if "seconds total time" in line]
-
-    if (len(line_total_runtime) == 0):
-        logging.error(
-            "Failed to find line containing the total runtime in output of command")
-        return 0
-
-    line_total_runtime = line_total_runtime[0].strip()
-
-    total_runtime = float(line_total_runtime[:line_total_runtime.index(' ')])
-
-    return total_runtime
-
-
 def launch_planner(planner: Planner, full_path_file_domain: str, full_path_file_problem: str) -> Tuple[List[str], float]:
-    """
-    Launch the planner specified and return the plan if found as well as the total runtime
+    """ Launch the planner specified and return the plan if found as well as the total runtime of the planner
+
+    Args:
+        planner (Planner): Planner to launch
+        full_path_file_domain (str): Full path of the domain file
+        full_path_file_problem (str): Full path of the problem file
+
+    Returns:
+        Tuple[List[str], float]: A tuple where the first argument contains the plan (or None if no plan is found), and the second argument contains the total runtime of the planner)
     """
 
     if (planner == Planner.SAT):
-        command = ["./gradlew",
-                   "run",
-                   "--args",
-                   "{domain_file} {problem_file} -t {timeout}".format(
-                       domain_file=full_path_file_domain, problem_file=full_path_file_problem, timeout=TIMEOUT_S)
-                   ]
+        command = "./gradlew run --args \"{domain_file} {problem_file}\"".format(
+            domain_file=full_path_file_domain, problem_file=full_path_file_problem)
+
     elif (planner == Planner.HSP):
-        command = ["java",
-                   "-cp",
-                   PATH_PDDL4J_LIB,
-                   PATH_CLASS_HSP_IN_PDDL4J,
-                   full_path_file_domain,
-                   full_path_file_problem,
-                   "-t",
-                   str(TIMEOUT_S)]
+        command = "java -cp {pddl4_lib} {path_hsp_class} {domain_file} {problem_file}".format(
+            pddl4_lib=PATH_PDDL4J_LIB, path_hsp_class=PATH_CLASS_HSP_IN_PDDL4J, domain_file=full_path_file_domain, problem_file=full_path_file_problem
+        )
+
     else:
         logging.error("Incorrect planner provided")
         return (None, None)
 
-    output = subprocess.run(
-        command, check=True, stdout=subprocess.PIPE, universal_newlines=True)
+    logging.info("Command: {command}".format(command=command))
 
-    plan = extract_plan_from_output(output_command=output.stdout)
-    total_runtime = extract_total_runtime_from_output(
-        output_command=output.stdout)
+    begin_time_command = time.time()
+    try:
+        output = subprocess.run(
+            shlex.split(command), check=True, stdout=subprocess.PIPE, universal_newlines=True, timeout=TIMEOUT_S)
+        end_time_command = time.time()
+        plan = extract_plan_from_output(output_command=output.stdout)
+    except subprocess.TimeoutExpired:
+        end_time_command = time.time()
+        plan = None
+
+    # Keep only 3 decimals for the runtime
+    total_runtime = round(end_time_command - begin_time_command, 3)
 
     return (plan, total_runtime)
 
 
 def check_plan_validity(full_path_file_domain: str, full_path_file_problem: str, full_path_file_plan: str) -> Boolean:
-    """
-    Check if a plan is valid using the VAL library (see https://github.com/KCL-Planning/VAL)
+    """Check if a plan is valid using the VAL library (see https://github.com/KCL-Planning/VAL)
+
+    Args:
+        full_path_file_domain (str): Full path of the domain file
+        full_path_file_problem (str): Full path of the problem file
+        full_path_file_plan (str): Full path of the plan file 
+
+    Returns:
+        Boolean: True if the plan is valid for this problem with this domain, False otherwise
     """
 
     command_check_plan = [
@@ -132,7 +140,8 @@ def check_plan_validity(full_path_file_domain: str, full_path_file_problem: str,
 if __name__ == '__main__':
 
     # Initialize logging
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(
+        format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
 
     for path_benchmark in PATH_BENCHMARKS:
         logging.info(
@@ -155,6 +164,9 @@ if __name__ == '__main__':
             full_path_benchmark, "domain.pddl")
 
         files_in_benchmark.remove("domain.pddl")
+
+        # Keep only the first 15 level of each benchmark
+        files_in_benchmark = files_in_benchmark[:15]
 
         for problem_file in files_in_benchmark:
 

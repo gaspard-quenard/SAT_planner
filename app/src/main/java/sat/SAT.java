@@ -1,4 +1,4 @@
-package demo;
+package sat;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -40,7 +40,7 @@ import picocli.CommandLine;
  *
  * <pre>
  * {@code
- * FF [-hV] [-l=<logLevel>] [-t=<timeout>] [-i=<InitialNumberSteps>][-o=<writePlanTo>] <domain>
+ * FF [-hV] [-l=<logLevel>] [-t=<timeout>] [-s=<sizePlan>][-o=<writePlanTo>] <domain>
  *             <problem>
  *
  * Description:
@@ -97,7 +97,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
     /**
      * Number of step of the bounding problem.
      */
-    private int sizePlan = 2;
+    private int sizePlan = 1;
 
     /**
      * Instantiates the planning problem from a parsed problem.
@@ -152,7 +152,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
      *
      * @param plan Plan to write into file
      */
-    private void writePlanToFile(String plan) {
+    public void writePlanToFile(String plan) {
         File file = new File(this.outputFullFileName);
 
         // Create the file to store the plan
@@ -180,7 +180,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
      * @param f       The fluent to display in easily readable format
      * @param problem The problem to solve
      */
-    private void prettyPrintFluent(Fluent f, ADLProblem problem) {
+    public void prettyPrintFluent(Fluent f, ADLProblem problem) {
         StringBuilder fluentToDisplay = new StringBuilder();
 
         // Add the fluent name (e.g "at" for the fluent at ?r - robot ?l - location)
@@ -239,7 +239,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
      * @return The unique ID of the fluent (i.e unique ID of the state at the given
      *         time step)
      */
-    private int getFluentUniqueIDforTimeStep(ADLProblem problem, Fluent state, int timeStep) {
+    public int getFluentUniqueIDforTimeStep(ADLProblem problem, Fluent state, int timeStep) {
         int idxState = problem.getFluents().indexOf(state);
         return (problem.getFluents().size() + problem.getActions().size()) * timeStep + 1 + idxState;
     }
@@ -267,7 +267,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
      * @param timeStep The time step of the action
      * @return The unique ID of the action at the given time step
      */
-    private int getActionUniqueIDforTimeStep(ADLProblem problem, Action action, int timeStep) {
+    public int getActionUniqueIDforTimeStep(ADLProblem problem, Action action, int timeStep) {
         int idxAction = problem.getActions().indexOf(action);
         return (problem.getFluents().size() + problem.getActions().size()) * timeStep + 1 + problem.getFluents().size()
                 + idxAction;
@@ -283,7 +283,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
      * @param actionUniqueID Unique ID of an action
      * @return The action object linked to this ID if exist, else null
      */
-    private Action getActionWithIdx(ADLProblem problem, int actionUniqueID) {
+    public Action getActionWithIdx(ADLProblem problem, int actionUniqueID) {
 
         if (actionUniqueID <= 0) {
             return null;
@@ -305,11 +305,11 @@ public class SAT extends AbstractPlanner<ADLProblem> {
      * @param planSize Size of the plan
      * @return A vector of set (VecInt) of litterals in the Dimacs format
      */
-    private Vec<IVecInt> encodeInitialState(final ADLProblem problem, int planSize) {
+    public Vec<IVecInt> encodeInitialState(final ADLProblem problem, int planSize) {
 
         Vec<IVecInt> clausesInitState = new Vec<IVecInt>();
 
-        // Get all the fluent at the initial state
+        // Get all the fluents at the initial state
         BitVector initStatePosFluents = problem.getInitialState().getPositiveFluents();
 
         HashSet<Integer> fluentsNotInInitState = new HashSet<Integer>();
@@ -349,7 +349,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
      * @param planSize Size of the plan
      * @return A vector of set (VecInt) of litterals in the Dimacs format
      */
-    private Vec<IVecInt> encodeFinalState(final ADLProblem problem, int planSize) {
+    public Vec<IVecInt> encodeFinalState(final ADLProblem problem, int planSize) {
 
         Vec<IVecInt> clausesGoalState = new Vec<IVecInt>();
 
@@ -369,27 +369,22 @@ public class SAT extends AbstractPlanner<ADLProblem> {
             goalPosFluents.set(p);
         }
 
-        // LOGGER.debug("Clause goal state: {}\n", clausesGoalState);
-
         return clausesGoalState;
     }
 
     /**
-     * Encode the action as a CNF formula in dimacs format.
+     * Encode the actions as a CNF formula in dimacs format.
      * 
      * @param problem  The problem to solve
      * @param planSize Size of the plan
      * @return A vector of set (VecInt) of litterals in the Dimacs format
      */
-    private Vec<IVecInt> encodeActions(final ADLProblem problem, int planSize) {
+    public Vec<IVecInt> encodeActions(final ADLProblem problem, int planSize) {
 
         Vec<IVecInt> clausesActions = new Vec<IVecInt>();
 
         Fluent f;
 
-        // TODO NOT OPTIMAL AT ALL, WE HAVE TO FIND AGAIN THE PRECONDITIONS AND EFFECT
-        // OF THE
-        // ACTION AT EACH TIME STEPS HERE...
         for (int timeStep = 0; timeStep < planSize; timeStep++) {
             for (Action action : problem.getActions()) {
 
@@ -477,7 +472,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
      * @param planSize Size of the plan
      * @return A vector of set (VecInt) of litterals in the Dimacs format
      */
-    private Vec<IVecInt> encodeExplanatoryFrameAxioms(final ADLProblem problem, int planSize) {
+    public Vec<IVecInt> encodeExplanatoryFrameAxioms(final ADLProblem problem, int planSize) {
 
         Vec<IVecInt> clausesExplanatoryFrameAxioms = new Vec<IVecInt>();
 
@@ -552,7 +547,6 @@ public class SAT extends AbstractPlanner<ADLProblem> {
             }
         }
 
-        // LOGGER.debug("Explanatory frames: {}\n", clausesExplanatoryFrameAxioms);
         return clausesExplanatoryFrameAxioms;
     }
 
@@ -563,14 +557,11 @@ public class SAT extends AbstractPlanner<ADLProblem> {
      * @param planSize Size of the plan
      * @return A vector of set (VecInt) of litterals in the Dimacs format
      */
-    private Vec<IVecInt> encodeCompleteExclusionAxioms(final ADLProblem problem, int numberSteps) {
+    public Vec<IVecInt> encodeCompleteExclusionAxioms(final ADLProblem problem, int planSize) {
 
         Vec<IVecInt> clausesCompleteExclusionAxioms = new Vec<IVecInt>();
 
-        // LOGGER.info("NUMBER ACTIONS: {}", problem.getActions().size());
-
         for (int iteratorAction1 = 0; iteratorAction1 < problem.getActions().size(); iteratorAction1++) {
-            // LOGGER.info("{}/{}\n", iteratorAction1, problem.getActions().size());
             for (int iteratorAction2 = 0; iteratorAction2 < iteratorAction1; iteratorAction2++) {
 
                 Action action1 = problem.getActions().get(iteratorAction1);
@@ -581,7 +572,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
 
                 int step = problem.getActions().size() + problem.getFluents().size();
 
-                for (int timeStep = 0; timeStep < numberSteps; timeStep++) {
+                for (int timeStep = 0; timeStep < planSize; timeStep++) {
 
                     int decalage = step * timeStep;
                     VecInt clause = new VecInt(
@@ -591,7 +582,6 @@ public class SAT extends AbstractPlanner<ADLProblem> {
             }
         }
 
-        // LOGGER.info("Exclusion axioms: {}\n", clausesCompleteExclusionAxioms);
         return clausesCompleteExclusionAxioms;
     }
 
@@ -614,8 +604,11 @@ public class SAT extends AbstractPlanner<ADLProblem> {
      * @throws TimeoutException Throw a timeout exeception if the solver failed to
      *                          find a solution in the timeout
      */
-    private int[] solverSAT(Vec<IVecInt> allClauses, ADLProblem problem) throws TimeoutException {
-        final int MAXVAR = (problem.getFluents().size() + problem.getActions().size()) * this.sizePlan;
+    public int[] solverSAT(Vec<IVecInt> allClauses, ADLProblem problem) throws TimeoutException {
+        final int MAXVAR = (problem.getFluents().size() + problem.getActions().size()) * this.sizePlan
+                + problem.getFluents().size();
+
+        LOGGER.info("Number clauses: {}\n", allClauses.size());
 
         ISolver solver = SolverFactory.newDefault();
 
@@ -649,20 +642,21 @@ public class SAT extends AbstractPlanner<ADLProblem> {
     /**
      * Encode the problem as a CNF formula in dimacs format.
      * 
-     * @param problem Problem to encode
+     * @param problem  Problem to encode
+     * @param planSize Size of the plan
      * @return A vector of set (VecInt) of litterals in the Dimacs format
      */
-    private Vec<IVecInt> encodeProblemAsCNF(ADLProblem problem, int numberSteps) {
+    public Vec<IVecInt> encodeProblemAsCNF(ADLProblem problem, int planSize) {
         LOGGER.info("Encode the inital state into clauses\n");
-        Vec<IVecInt> clausesInitState = encodeInitialState(problem, numberSteps);
+        Vec<IVecInt> clausesInitState = encodeInitialState(problem, planSize);
         LOGGER.info("Encode the final state into clauses\n");
-        Vec<IVecInt> clausesGoalState = encodeFinalState(problem, numberSteps);
+        Vec<IVecInt> clausesGoalState = encodeFinalState(problem, planSize);
         LOGGER.info("Encode the actions into clauses\n");
-        Vec<IVecInt> clausesActions = encodeActions(problem, numberSteps);
+        Vec<IVecInt> clausesActions = encodeActions(problem, planSize);
         LOGGER.info("Encode the explanatory frame axioms into clauses\n");
-        Vec<IVecInt> clausesExplanatoryFrameAxioms = encodeExplanatoryFrameAxioms(problem, numberSteps);
+        Vec<IVecInt> clausesExplanatoryFrameAxioms = encodeExplanatoryFrameAxioms(problem, planSize);
         LOGGER.info("Encode complete excusion axiom into clauses\n");
-        Vec<IVecInt> clausesCompleteExclusionAxioms = encodeCompleteExclusionAxioms(problem, numberSteps);
+        Vec<IVecInt> clausesCompleteExclusionAxioms = encodeCompleteExclusionAxioms(problem, planSize);
 
         // Merge all the clauses into a single vector
         Vec<IVecInt> allClauses = new Vec<IVecInt>(clausesInitState.size() + clausesGoalState.size()
@@ -673,6 +667,12 @@ public class SAT extends AbstractPlanner<ADLProblem> {
         clausesExplanatoryFrameAxioms.copyTo(allClauses);
         clausesCompleteExclusionAxioms.copyTo(allClauses);
 
+        LOGGER.debug("Init state size: {}\n", clausesInitState.size());
+        LOGGER.debug("Goal state size: {}\n", clausesGoalState.size());
+        LOGGER.debug("Action state size: {}\n", clausesActions.size());
+        LOGGER.debug("clausesExplanatoryFrameAxioms state size: {}\n", clausesExplanatoryFrameAxioms.size());
+        LOGGER.debug("clausesCompleteExclusionAxioms state size: {}\n", clausesCompleteExclusionAxioms.size());
+
         return allClauses;
     }
 
@@ -682,7 +682,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
      * @param model Model of the problem
      * @return the plan construct from the model
      */
-    private Plan constructPlanFromModel(int[] model, ADLProblem problem) {
+    public Plan constructPlanFromModel(int[] model, ADLProblem problem) {
         Plan plan = new SequentialPlan();
         int idxActionInPlan = 0;
         for (Integer idx : model) {
@@ -730,6 +730,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
             this.getStatistics()
                     .setTimeToEncode(this.getStatistics().getTimeToEncode() + (endEncodeTime - beginEncodeTime));
 
+            LOGGER.info("Number clauses: {}\n", allClauses.size());
             // We have encoded the full problem into its CNF form, now, pass it to the
             // solver
             final long beginSolveTime = System.currentTimeMillis();
