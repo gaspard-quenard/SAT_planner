@@ -1,12 +1,8 @@
-import enum
-from xmlrpc.client import Boolean
 import matplotlib.pyplot as plt
-import numpy as np
 import logging
 import os
 from typing import List, Tuple
 import subprocess
-import re
 from enum import Enum
 import shlex
 import time
@@ -109,7 +105,7 @@ def launch_planner(planner: Planner, full_path_file_domain: str, full_path_file_
     return (plan, total_runtime)
 
 
-def check_plan_validity(full_path_file_domain: str, full_path_file_problem: str, full_path_file_plan: str) -> Boolean:
+def check_plan_validity(full_path_file_domain: str, full_path_file_problem: str, full_path_file_plan: str) -> bool:
     """Check if a plan is valid using the VAL library (see https://github.com/KCL-Planning/VAL)
 
     Args:
@@ -118,7 +114,7 @@ def check_plan_validity(full_path_file_domain: str, full_path_file_problem: str,
         full_path_file_plan (str): Full path of the plan file 
 
     Returns:
-        Boolean: True if the plan is valid for this problem with this domain, False otherwise
+        bool: True if the plan is valid for this problem with this domain, False otherwise
     """
 
     command_check_plan = [
