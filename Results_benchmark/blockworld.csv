@@ -1,0 +1,16 @@
+benchmark_name,problem_name,sat_plan_size,sat_total_run_time,hsp_plan_size,hsp_total_run_time
+blocksworld,p01.pddl,8,2.396,6,1.094
+blocksworld,p02.pddl,10,2.089,10,1.097
+blocksworld,p03.pddl,8,2.261,6,1.003
+blocksworld,p04.pddl,16,2.252,12,1.116
+blocksworld,p05.pddl,14,2.255,10,1.083
+blocksworld,p06.pddl,16,2.493,16,1.173
+blocksworld,p07.pddl,14,2.357,12,1.243
+blocksworld,p08.pddl,12,2.484,10,1.25
+blocksworld,p09.pddl,30,3.581,20,1.384
+blocksworld,p10.pddl,26,6.876,20,1.31
+blocksworld,p11.pddl,26,17.148,22,2.194
+blocksworld,p12.pddl,28,10.559,20,1.515
+blocksworld,p13.pddl,30,24.718,18,1.496
+blocksworld,p14.pddl,28,98.817,20,1.985
+blocksworld,p15.pddl,16,3.479,16,1.519

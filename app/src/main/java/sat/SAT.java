@@ -46,10 +46,9 @@ import picocli.CommandLine;
  * Description:
  *
  * Solves a specified planning problem by transforming the problem into a bounding problem
- * (defined the maximum number of actions to resolve the problem) encoding it into its CNF form and 
+ * (by defining the maximum number of actions to resolve the problem) encoding it into its CNF form and 
  * launching a solver SAT (taken from the library sat4j) on the CNF encoding 
- * generated. If no plan is found, try again by doubling the maximum number of steps for
- * the bounding problem until the timeout is reached. 
+ * generated. If no plan is found, the same steps are done again with a maximum number of actions doubled until a plan is found or the timeout is reached.
  *
  * Parameters:
  *       <domain>              The domain file.
@@ -600,7 +599,7 @@ public class SAT extends AbstractPlanner<ADLProblem> {
         // prepare the solver to accept MAXVAR variables. MANDATORY for MAXSAT solving
         solver.newVar(MAXVAR);
         solver.setExpectedNumberOfClauses(allClauses.size());
-        solver.setTimeout(this.getTimeout());
+        // solver.setTimeout(this.getTimeout());
 
         try {
             solver.addAllClauses(allClauses);

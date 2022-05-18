@@ -1,3 +1,4 @@
+from ast import operator
 import matplotlib.pyplot as plt
 import logging
 import os
@@ -6,15 +7,18 @@ import subprocess
 from enum import Enum
 import shlex
 import time
+import csv
+import pandas as pd
 
 PATH_BENCHMARKS = [
     "benchmarks/blocksworld",
     "benchmarks/logistics",
     "benchmarks/gripper",
-    "benchmarks/depot"
+    "benchmarks/depots"
 ]
 
-PATH_OUTPUT = "stats_first_15_levels_with_imcrement_2.txt"
+# Folder to write the results of the performance of the planner on the benchmarks
+PATH_OUTPUT = "Results_benchmark"
 
 # Path to the binary of the pddl4j lib
 PATH_PDDL4J_LIB = "app/libs/pddl4j-4.0.0.jar"
@@ -136,15 +140,54 @@ def check_plan_validity(full_path_file_domain: str, full_path_file_problem: str,
         return False
 
 
+def generate_graphs():
+    """_summary_
+    """
+
+    # See all csv file in the output folder
+    files_name = os.listdir(PATH_OUTPUT)
+    csv_files_names = [file for file in files_name if file.endswith('.csv')]
+
+    for file_name in csv_files_names:
+        path_file_name = os.path.join(PATH_OUTPUT, file_name)
+
+        data = pd.read_csv(path_file_name)
+
+        # Sort data by hsp_total_run_time
+        data.sort_values(["hsp_total_run_time"], axis=0,
+                         ascending=[True], inplace=True)
+
+        with open(path_file_name, 'r') as f:
+            # csvFile = csv.DictReader(f)
+
+            # Sort all lines
+            data = sorted(csvFile, key=operator.itemgetter(2))
+
+
 if __name__ == '__main__':
 
     # Initialize logging
     logging.basicConfig(
         format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
 
+    generate_graphs()
+
+    exit(0)
+
     for path_benchmark in PATH_BENCHMARKS:
+
+        name_benchmark = path_benchmark.split('/')[-1]
         logging.info(
-            "Test benchmark {benchmark_name}".format(benchmark_name=path_benchmark))
+            "Test benchmark {benchmark_name}".format(benchmark_name=name_benchmark))
+
+        # Create the file to write results if not exist
+        file_to_write_result = os.path.join(
+            PATH_OUTPUT, "{name_benchmark}.csv".format(name_benchmark=name_benchmark))
+        if (not os.path.exists(file_to_write_result)):
+            # Initialize the file by writing the name of all the columns
+            with open(file_to_write_result, 'a') as f:
+                f.write(
+                    "benchmark_name,problem_name,sat_plan_size,sat_total_run_time,hsp_plan_size,hsp_total_run_time")
 
         # Load all the problems
         files_in_benchmark = sorted(os.listdir(path_benchmark))
@@ -169,13 +212,13 @@ if __name__ == '__main__':
 
         for problem_file in files_in_benchmark:
 
-            with open(PATH_OUTPUT, 'r') as f:
+            with open(file_to_write_result, 'r') as f:
                 skip_problem = False
                 lines = f.readlines()
                 for line in lines:
-                    if ("{benchmark_name},{problem_name}".format(benchmark_name=path_benchmark, problem_name=problem_file) in line):
+                    if ("{benchmark_name},{problem_name}".format(benchmark_name=name_benchmark, problem_name=problem_file) in line):
                         logging.info("Problem {problem_name} of benchmark: {benchmark_name} already done".format(
-                            problem_name=problem_file, benchmark_name=path_benchmark))
+                            problem_name=problem_file, benchmark_name=name_benchmark))
                         skip_problem = True
                         break
 
@@ -236,9 +279,9 @@ if __name__ == '__main__':
             logging.info("Size plan: {size_plan}, total time: {total_runtime} s".format(
                 size_plan=len(plan_hsp), total_runtime=total_run_time_hsp))
 
-            with open(PATH_OUTPUT, 'a') as f:
+            with open(file_to_write_result, 'a') as f:
                 line_to_write = "{benchmark_name},{problem_name},{size_plan_sat},{total_run_time_sat},{size_plan_hsp},{total_run_time_hsp}\n".format(
-                    benchmark_name=path_benchmark,
+                    benchmark_name=name_benchmark,
                     problem_name=problem_file,
                     size_plan_sat=len(plan_sat),
                     total_run_time_sat=total_run_time_sat,
