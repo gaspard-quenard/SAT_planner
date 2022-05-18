@@ -14,7 +14,7 @@ PATH_BENCHMARKS = [
     "benchmarks/depot"
 ]
 
-PATH_OUTPUT = "stats_first_15_levels_with_imcrement.txt"
+PATH_OUTPUT = "stats_first_15_levels_with_imcrement_2.txt"
 
 # Path to the binary of the pddl4j lib
 PATH_PDDL4J_LIB = "app/libs/pddl4j-4.0.0.jar"
@@ -95,7 +95,10 @@ def launch_planner(planner: Planner, full_path_file_domain: str, full_path_file_
             shlex.split(command), check=True, stdout=subprocess.PIPE, universal_newlines=True, timeout=TIMEOUT_S)
         end_time_command = time.time()
         plan = extract_plan_from_output(output_command=output.stdout)
-    except subprocess.TimeoutExpired:
+    # except subprocess.TimeoutExpired:
+    except Exception as e:
+        logging.error("Failed to find a plan with exception: {exception_name}".format(
+            exception_name=type(e).__name__))
         end_time_command = time.time()
         plan = None
 
@@ -165,6 +168,19 @@ if __name__ == '__main__':
         files_in_benchmark = files_in_benchmark[:15]
 
         for problem_file in files_in_benchmark:
+
+            with open(PATH_OUTPUT, 'r') as f:
+                skip_problem = False
+                lines = f.readlines()
+                for line in lines:
+                    if ("{benchmark_name},{problem_name}".format(benchmark_name=path_benchmark, problem_name=problem_file) in line):
+                        logging.info("Problem {problem_name} of benchmark: {benchmark_name} already done".format(
+                            problem_name=problem_file, benchmark_name=path_benchmark))
+                        skip_problem = True
+                        break
+
+                if (skip_problem):
+                    continue
 
             full_path_file_problem = os.path.join(
                 full_path_benchmark, problem_file)
