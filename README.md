@@ -29,11 +29,11 @@ To generate the javadoc just type:
 ./gradlew javadoc
 ```
 
-To open the documentation, open the file `index.html` with your navigator. 
+To open the documentation, open the file `index.html` located in the `app/build/docs/javadoc` directory with your navigator. 
 
 ## Check performance
 
-This repository contains as well a python script to compare the performance of the SAT planner with an HSP planner. This script will launch the SAT planner and the HSP planner on the 20 first problems of the 4 benchmarks, and store the total number of seconds to run the planner and the size of the plan found into a csv file in the folder specified by the variable `PATH_OUTPUT` in the script. Once this is done, this script will generate as well figures to show thoses metrics. 
+This repository contains as well a python script to compare the performance of the SAT planner implemented here with an HSP planner implemented by the pdd4j library. This script will launch the SAT planner and the HSP planner on the 20 first problems of the 4 benchmarks, and store the total number of seconds to run the planner and the size of the plan found into a csv file in the folder specified by the variable `PATH_OUTPUT` in the script. Once this is done, this script will generate as well figures to show thoses metrics. 
 
 You can launch this script with the command:
 
